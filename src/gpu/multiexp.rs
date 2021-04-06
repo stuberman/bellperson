@@ -144,11 +144,11 @@ where
         // Each thread will use `num_groups` * `num_windows` * `bucket_len` buckets.
 
         let mut base_buffer = self.program.create_buffer::<G>(n)?;
-        base_buffer.write_from(0, bases)?;
+        base_buffer.write_from(self.program.queue(), 0, bases)?;
         let mut exp_buffer = self
             .program
             .create_buffer::<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>(n)?;
-        exp_buffer.write_from(0, exps)?;
+        exp_buffer.write_from(self.program.queue(), 0, exps)?;
 
         let bucket_buffer = self
             .program
@@ -187,7 +187,7 @@ where
         )?;
 
         let mut results = vec![<G as CurveAffine>::Projective::zero(); num_groups * num_windows];
-        result_buffer.read_into(0, &mut results)?;
+        result_buffer.read_into(self.program.queue(), 0, &mut results)?;
 
         // Using the algorithm below, we can calculate the final result by accumulating the results
         // of those `NUM_GROUPS` * `NUM_WINDOWS` threads.
@@ -207,6 +207,10 @@ where
         Ok(acc)
     }
 }
+
+// NOTE vmx 2021-04-06: opencl3 doesn't implement `Send` for their types, hence make the kernel
+// itself `Send` so that it can be send between threads.
+unsafe impl<E: Engine> Send for SingleMultiexpKernel<E> {}
 
 // A struct that containts several multiexp kernels for different devices
 pub struct MultiexpKernel<E>
